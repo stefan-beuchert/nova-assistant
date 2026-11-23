@@ -48,11 +48,19 @@ When any of these change (a different topology, a new shared service), update th
 - Postgres is backed up automatically at the platform level (daily, with a verified restore drill) — you don't need to build this yourself for database state.
 - Anything your app stores outside Postgres (uploaded files, OAuth tokens, other local state) is **not** covered by the platform backup and needs its own documented backup/restore procedure.
 
-## Authentication — still not built
+## Authentication — Authentik, live
 
-- No shared auth provider exists yet (Authentik is planned, not deployed). Don't build against it; if your project needs auth today, it's on you to implement it locally and revisit once a platform auth service exists.
+- A shared **Authentik** SSO/identity provider is deployed and now gates most internal
+  UIs (confirmed via `atlas-infrastructure`'s `CURRENT.md`/`Caddyfile`). The common
+  pattern is Caddy `forward_auth`: a Proxy Provider (`forward_single`) bound to an
+  Application on Authentik's embedded outpost, plus `import authentik_forward_auth` as
+  the first line of the service's Caddy site block. See
+  `atlas-infrastructure/compose/authentik/README.md` ("Protecting an app") for the
+  exact API steps.
+- A new internal UI should be gated this way rather than implementing its own auth, and
+  is reachable only over Tailscale. Nova uses exactly this boundary (`nova.atlas`,
+  `forward_auth`, tailnet-only).
 
 ## Open questions
 
 - Exact shape of self-service Postgres provisioning (still manual today).
-- How auth will eventually be wired in (reverse-proxy-level vs. per-app) once Authentik lands.

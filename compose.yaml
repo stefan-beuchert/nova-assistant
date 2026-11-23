@@ -1,0 +1,26 @@
+# Nova — Atlas personal assistant.
+#
+# Per atlas/docs/STANDARDS.md and docs/platform-assumptions.md:
+#   - No bundled database (the PoC is stateless — docs/decisions.md D4).
+#   - Routing is NOT via compose labels. The shared Caddy reverse proxy
+#     (atlas-infrastructure) is configured by a static Caddyfile; a request
+#     to add a `nova.atlas` site block behind Authentik forward_auth is
+#     pre-filed in that repo's docs/ATLAS_REQUESTS.md (2026-11-23).
+services:
+  nova:
+    build: .
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Published for local development. In production Caddy reaches this
+    # service by its compose service name (nova) on the shared network.
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    networks:
+      - atlas
+
+networks:
+  # The shared external Atlas Docker network, created by the platform.
+  atlas:
+    external: true
+    name: atlas
