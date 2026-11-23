@@ -26,5 +26,9 @@ class Config:
     # Ephemeral per-boot key if unset — acceptable for the single-user PoC.
     SECRET_KEY = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
 
-    # Phase 3, not wired yet: Constellation's read-only MCP server.
+    # Constellation's read-only MCP server (the allowlisted data source, ADR-0009).
     CONSTELLATION_MCP_URL = os.environ.get("CONSTELLATION_MCP_URL", "")
+
+    # Running-version stamp, set by deploy/deploy.sh via compose; surfaced at /version.
+    APP_VERSION = os.environ.get("APP_VERSION", "dev")
+    APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "")

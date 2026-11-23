@@ -11,6 +11,11 @@ services:
     build: .
     env_file:
       - .env
+    environment:
+      # Set by deploy/deploy.sh at deploy time; fall back to dev/empty for a local run.
+      # Surfaced at GET /version so you can confirm which commit is live.
+      - APP_VERSION=${GIT_SHA:-dev}
+      - APP_BUILD_TIME=${BUILD_TIME:-}
     restart: unless-stopped
     # Published for local development. In production Caddy reaches this
     # service by its compose service name (nova) on the shared network.

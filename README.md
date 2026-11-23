@@ -103,10 +103,21 @@ python -m src.web.app       # http://localhost:8080 (ANTHROPIC_API_KEY required 
 
 Nova is reached at `https://nova.atlas`, fronted by the shared Caddy instance and
 gated by Authentik `forward_auth`, on the shared `atlas` Docker network — the same
-boundary every other internal UI uses. The Caddy route, Authentik gating, and the
-Homepage entry are owned by `atlas-infrastructure` (a request for this wiring is
-already pre-filed in that repo's `docs/ATLAS_REQUESTS.md`, 2026-11-23). See
-[`docs/platform-assumptions.md`](docs/platform-assumptions.md) for the concrete
+boundary every other internal UI uses. It listens on port **8080** inside the
+container (Caddy should `reverse_proxy nova:8080`).
+
+**App-owned half** (this repo): clone on the Pi, create `.env` (at minimum
+`ANTHROPIC_API_KEY` and `CONSTELLATION_MCP_URL=http://constellation-mcp:8000/mcp`),
+then `docker compose up -d --build`. Ongoing updates are handled by a git-pull-and-
+rebuild systemd timer — see [`deploy/README.md`](deploy/README.md) (the same pattern
+as Constellation; `GET /version` reports the live commit).
+
+**Platform-owned half** (`atlas-infrastructure`): the `nova.atlas` Caddy route,
+Authentik `forward_auth` gating, and the Homepage entry. A request for this wiring is
+pre-filed in that repo's `docs/ATLAS_REQUESTS.md` (2026-11-23). The Nova→Constellation
+MCP hop is container-to-container on the `atlas` network and needs no Caddy/Authentik.
+
+See [`docs/platform-assumptions.md`](docs/platform-assumptions.md) for the concrete
 platform facts and [`atlas/docs/STANDARDS.md`](../atlas/docs/STANDARDS.md) for the
 app-owned half of the deployment contract.
 

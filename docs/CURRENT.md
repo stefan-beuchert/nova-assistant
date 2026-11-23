@@ -20,11 +20,18 @@ deployed Constellation server happens at Phase 4 (see Dependencies).
 
 ## Next Milestone
 
-**Phase 4 — Deploy** (`docs/PROJECT.md` §6): `atlas-infrastructure` adds the
-`nova.atlas` Caddy route + Authentik `forward_auth` + Homepage entry (request
-pre-filed), then Nova is set with `CONSTELLATION_MCP_URL=http://constellation-mcp:8000/mcp`
-and deployed to the Pi so it joins the `atlas` network and can reach the live
-Constellation MCP server. This is the first end-to-end run against real data.
+**Phase 4 — Deploy** (`docs/PROJECT.md` §6). The Constellation MCP server is live, and
+Nova's **app-side deploy tooling now exists** (`deploy/` — a git-pull-and-rebuild
+systemd timer mirroring Constellation; `GET /version` reports the live commit). What
+remains is operator/infra, not code:
+  1. **Infra** (`atlas-infrastructure`): add the `nova.atlas` Caddy route (→ `nova:8080`),
+     Authentik `forward_auth`, and a Homepage entry (request pre-filed there).
+  2. **Operator**: on the Pi, clone the repo, create `.env` (real `ANTHROPIC_API_KEY` +
+     `CONSTELLATION_MCP_URL=http://constellation-mcp:8000/mcp`), `docker compose up -d
+     --build`, and enable `nova-deploy.timer` (see `deploy/README.md`).
+Once deployed, Nova joins the `atlas` network and this is the first end-to-end run
+against real data (real Claude + the live Constellation MCP server) — which can't be
+exercised from a dev box (the MCP server publishes no host port).
 
 ## Deviations from Atlas Vision, Architecture, or Standards
 
@@ -62,6 +69,12 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-23 (Phase 4 — app-side) — Added deploy tooling: `deploy/deploy.sh`
+  (git-pull-and-rebuild poller with a conditional test gate), `deploy/nova-deploy.{service,timer}`,
+  and `deploy/README.md`, mirroring Constellation. Added a running-version stamp
+  (`APP_VERSION`/`APP_BUILD_TIME` via compose → `GET /version`). README Deployment
+  rewritten into app-owned vs platform-owned halves. The remaining Phase-4 work is
+  operator/infra (Caddy/Authentik wiring + the Pi deploy with a real `ANTHROPIC_API_KEY`).
 - 2026-11-23 (Phase 3) — Integrated Constellation's read-only MCP server. New MCP
   client bridge `src/agent/mcp_client.py` (sync wrapper over the `mcp` 2.x high-level
   `Client`, streamable-HTTP, fresh connection per call, best-effort). `src/agent/tools.py`

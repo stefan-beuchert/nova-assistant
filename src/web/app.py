@@ -42,6 +42,10 @@ def create_app() -> Flask:
             sources=registry.mounted_sources,
         )
 
+    @app.get("/version")
+    def version():
+        return jsonify(version=Config.APP_VERSION, build_time=Config.APP_BUILD_TIME)
+
     @app.get("/")
     def index():
         return render_template("index.html")

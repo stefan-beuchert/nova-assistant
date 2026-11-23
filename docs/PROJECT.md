@@ -86,10 +86,12 @@ Phases are sequential; each ends with something demonstrable. Only Phase 0 is do
   `mcp` SDK; `src/agent/tools.py`'s registry discovers its tools (namespaced
   `constellation__*`) and routes calls back. Contract-verified locally against a real
   streamable-HTTP MCP server. First run against the *deployed* server is Phase 4.
-- **Phase 4 — Deploy.** Infrastructure adds the `nova.atlas` Caddy route, Authentik
-  `forward_auth`, and the Homepage entry (request already pre-filed in
-  `atlas-infrastructure/docs/ATLAS_REQUESTS.md`); deploy to the Pi via the standard
-  git-pull-and-rebuild pattern.
+- **Phase 4 — Deploy (in progress).** App-side tooling is built: a git-pull-and-rebuild
+  systemd timer (`deploy/`) and a `GET /version` stamp, mirroring Constellation.
+  Remaining is operator/infra: `atlas-infrastructure` adds the `nova.atlas` Caddy route
+  (→ `nova:8080`) + Authentik `forward_auth` + Homepage entry (request pre-filed there),
+  and the operator deploys to the Pi with a real `.env` (`ANTHROPIC_API_KEY` +
+  `CONSTELLATION_MCP_URL`). First end-to-end run against real data happens here.
 
 ## 7. Future direction (not committed)
 

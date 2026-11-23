@@ -1,0 +1,14 @@
+[Unit]
+Description=Nova auto-deploy check
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# EDIT THIS: replace <PI_USER> with the actual account the repo is cloned under,
+# and adjust the path if you cloned it somewhere other than your home directory.
+# User= matters, not just cosmetic: without it this runs as root, and git refuses
+# to operate on a repo directory owned by a different user ("dubious ownership").
+User=<PI_USER>
+WorkingDirectory=/home/<PI_USER>/nova-assistant
+ExecStart=/home/<PI_USER>/nova-assistant/deploy/deploy.sh

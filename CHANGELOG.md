@@ -4,6 +4,16 @@ Notable changes to the Nova repository. Day-to-day build progress lives in
 `docs/CURRENT.md`'s Changelog section (the Atlas sync contract); this file records
 repository-level milestones.
 
+## 2026-11-23 — Deploy tooling (Phase 4, app-side)
+
+- Added the git-pull-and-rebuild deploy mechanism (`deploy/deploy.sh` + systemd
+  `nova-deploy.service`/`.timer` + `deploy/README.md`), mirroring Constellation, and a
+  running-version stamp surfaced at `GET /version` (`APP_VERSION`/`APP_BUILD_TIME` set
+  by the deploy script via compose). README Deployment split into app-owned vs
+  platform-owned halves. Remaining Phase-4 work is operator/infra: the `nova.atlas`
+  Caddy route + Authentik gating in `atlas-infrastructure`, and the Pi deploy with a
+  real `ANTHROPIC_API_KEY`. See `docs/CURRENT.md`.
+
 ## 2026-11-23 — Constellation MCP integration (Phase 3)
 
 - Nova now reads the user's contacts through **Constellation's read-only MCP server**.
