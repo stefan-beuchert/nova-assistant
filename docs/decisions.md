@@ -42,9 +42,10 @@ durable value stays in each app's data and own UI, and Nova stays a tolerant,
 non-authoritative consumer (the ADR-0006 cross-app pattern, as MCP). Nova owning a
 Constellation wrapper would pull another app's data model into this repo.
 
-**Consequence / dependency.** Phase 3 depends on Constellation shipping that server
-(contract: transport, URL, tool surface). Tracked in `docs/CURRENT.md`; routed to
-Constellation through the Atlas Architect, since Nova must not modify that repo.
+**Consequence / dependency.** Phase 3 depended on Constellation shipping that server
+(contract: transport, URL, tool surface) — **resolved 2026-11-23**: Constellation now
+runs a `constellation-mcp` service on the `atlas` network, streamable-HTTP on :8000,
+with `list_contacts` / `get_contact`. Nova consumes it as an MCP client (see D6).
 
 **Alternatives considered.** (a) Nova hosts a thin MCP layer over Constellation's REST
 — faster, no Constellation change, but deviates from "source app exposes MCP" and
@@ -97,3 +98,31 @@ the footprint small on the Pi, and lets the existing platform boundary do the au
 
 **Alternatives considered.** A JS SPA / separate frontend build — rejected as
 disproportionate for a single-user PoC and inconsistent with the other apps.
+
+---
+
+## D6 — MCP consumed as a client via a thin sync bridge (added 2026-11-23)
+
+**Decision.** Nova reaches Constellation's MCP server (D2) with the official `mcp` 2.x
+high-level `Client` over streamable HTTP, wrapped in a small **synchronous** bridge
+(`src/agent/mcp_client.py`): each `list_tools` / `call_tool` runs a short `asyncio`
+loop and opens a **fresh connection per call**. Discovered tools are namespaced
+`<source>__<tool>` and registered in the `ToolRegistry` alongside the built-ins;
+mounting is **best-effort** — an unreachable source logs a warning and contributes no
+tools, and Nova keeps working.
+
+**Why.** Nova's web layer is synchronous (D5); a per-call loop keeps the whole codebase
+sync without a persistent async session to manage, and per-call connects are negligible
+for a single user. Namespacing avoids tool-name collisions across future sources and
+shows provenance. Best-effort mounting matches the tolerant, non-authoritative cross-app
+posture (ADR-0006/0009) — a source being down must never take Nova down.
+
+**Why not the API-native MCP connector.** Anthropic's `mcp_servers` request parameter
+makes the *model API* connect to the MCP server directly. Constellation's server is on
+the private `atlas` tailnet with no public exposure, so Anthropic's cloud can't reach
+it. Nova must be the client and relay the tools itself — which also keeps the allowlist
+(D3) in Nova's own code, not delegated to the API.
+
+**Alternatives considered.** A persistent async MCP session shared across requests —
+rejected for the PoC: more moving parts (lifecycle, reconnect) for no meaningful gain at
+single-user volume; revisit if latency matters.

@@ -4,6 +4,19 @@ Notable changes to the Nova repository. Day-to-day build progress lives in
 `docs/CURRENT.md`'s Changelog section (the Atlas sync contract); this file records
 repository-level milestones.
 
+## 2026-11-23 — Constellation MCP integration (Phase 3)
+
+- Nova now reads the user's contacts through **Constellation's read-only MCP server**.
+  Added an MCP client bridge (`src/agent/mcp_client.py`, `mcp` 2.x `Client` over
+  streamable HTTP) and reworked `src/agent/tools.py` into a `ToolRegistry` +
+  `build_allowlisted_sources` — the ADR-0009 data-class allowlist in code: only
+  explicitly configured MCP sources are mounted (Constellation; Vitae/photos never),
+  their tools namespaced `constellation__*`. `/health` reports mounted sources. Added
+  `mcp>=2,<3`; `CONSTELLATION_MCP_URL` defaults to `http://constellation-mcp:8000/mcp`.
+  Verified against a real streamable-HTTP MCP server. Phase 4 (deploy) is next; the
+  first run against the live Constellation server happens there. See `docs/decisions.md`
+  D6 and `docs/CURRENT.md`.
+
 ## 2026-11-23 — Bootstrap + chat PoC shell (Phases 0–2)
 
 - **Phase 0 — Bootstrap.** Turned the `atlas-seedling` copy into a real Atlas

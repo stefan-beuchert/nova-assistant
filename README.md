@@ -72,12 +72,14 @@ MCP-client-only, stateless PoC, server-rendered UI).
 
 ## Status
 
-**Bootstrapped from `atlas-seedling` on 2026-11-23; Phases 0–2 built** (see
-`docs/PROJECT.md` §6). The web chat, the Claude agent loop, and a safe built-in tool
-are working and verified locally. The next step — reading real data via Constellation's
-MCP server (Phase 3) — is **blocked on Constellation shipping that server**; see
-[`docs/CURRENT.md`](docs/CURRENT.md). The architectural decision and data boundary are
-settled upstream (ADR-0009).
+**Bootstrapped from `atlas-seedling` on 2026-11-23; Phases 0–3 built** (see
+`docs/PROJECT.md` §6). The web chat, the Claude agent loop, and the **Constellation
+MCP integration** (read-only `list_contacts` / `get_contact` via the allowlist) are
+implemented and verified locally against a real streamable-HTTP MCP server. The
+remaining step is **Phase 4 — deployment** (`atlas-infrastructure` adds the
+`nova.atlas` route + Authentik gating; Nova joins the `atlas` network and runs against
+the live Constellation server); see [`docs/CURRENT.md`](docs/CURRENT.md). The
+architectural decision and data boundary are settled upstream (ADR-0009).
 
 ## Local development
 
@@ -116,7 +118,7 @@ app-owned half of the deployment contract.
 | `APP_URL` | Public URL this service is reached at (`https://nova.atlas`). |
 | `PORT` | Port the app listens on inside the container. |
 | `LOG_LEVEL` | Logging verbosity. |
-| `CONSTELLATION_MCP_URL` | URL of Constellation's read-only MCP server on the `atlas` network (contract to be finalised with that repo). Unset = source disabled. |
+| `CONSTELLATION_MCP_URL` | Constellation's read-only MCP server on the `atlas` network — `http://constellation-mcp:8000/mcp` in production. The allowlisted data source Nova reads. Unset = source disabled (built-in tools only). |
 
 No `POSTGRES_*` variables: the PoC is **stateless** and provisions no database (see
 `docs/decisions.md`). This table grows as the scaffold lands.

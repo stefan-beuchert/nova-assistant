@@ -1,27 +1,30 @@
-"""Built-in tools Nova may call during the agent loop.
+"""The tools Nova may call, and the allowlist that decides which are mounted.
 
-This module is where the ADR-0009 data-class allowlist is expressed in code:
-**only the tools listed in `BUILTIN_TOOLS` are ever mounted.** No tool reaching
-a denied data class (Vitae medical records, photos) exists in this process, so
-the boundary holds structurally — not because the model declines to ask.
+The `ToolRegistry` is where the ADR-0009 data-class allowlist lives in code: the
+agent loop can only ever call (a) the safe built-ins defined here, and (b) tools
+from MCP sources that were *explicitly configured* in `build_allowlisted_sources`.
+A source's tools exist in the running process only if it is on that list — so a
+denied data class (Vitae medical records, photos) is unreachable by construction,
+not because the model declines to ask.
 
-For the proof of concept the only tool is `get_current_time`: read-only, no data
-source, no side effects. Its sole purpose is to exercise the tool-use loop end to
-end (CLAUDE.md §2). Phase 3 adds Constellation's read-only MCP tools through this
-same allowlist; until then the loop runs on safe built-ins only.
-
-Adding any tool here that reaches a data source — or that writes or sends
-anything — is a §1 decision in CLAUDE.md: stop and get explicit confirmation.
+Adding a built-in that reaches a data source, a write/outbound tool, or a new MCP
+source is a CLAUDE.md §1/§2 decision: stop and get explicit confirmation.
 """
 
+import logging
 from datetime import datetime, timezone
 
+from .mcp_client import McpSource
+
+logger = logging.getLogger(__name__)
+
+
+# --- Safe built-in tools (no data source, no side effects) -------------------
 
 def _get_current_time(_args: dict) -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# Each entry is an Anthropic tool definition plus a private `_handler`.
 BUILTIN_TOOLS = [
     {
         "name": "get_current_time",
@@ -39,20 +42,82 @@ BUILTIN_TOOLS = [
 ]
 
 
-def tool_definitions() -> list[dict]:
-    """The tool list to send to the API (private `_handler` keys stripped)."""
-    return [
-        {k: v for k, v in tool.items() if not k.startswith("_")}
-        for tool in BUILTIN_TOOLS
-    ]
+# --- The allowlist -----------------------------------------------------------
+
+def build_allowlisted_sources(config) -> list[McpSource]:
+    """The ADR-0009 data-class allowlist: only explicitly configured sources are
+    ever mounted. Constellation is the proof-of-concept source. Vitae and photos
+    are intentionally absent and must never be added here.
+    """
+    sources: list[McpSource] = []
+    if getattr(config, "CONSTELLATION_MCP_URL", ""):
+        sources.append(McpSource("constellation", config.CONSTELLATION_MCP_URL))
+    return sources
 
 
-def execute_tool(name: str, args: dict | None) -> str:
-    """Run an allowlisted tool by name. Unknown names are refused, not guessed."""
-    for tool in BUILTIN_TOOLS:
-        if tool["name"] == name:
+def build_registry(config) -> "ToolRegistry":
+    return ToolRegistry(build_allowlisted_sources(config))
+
+
+# --- The registry ------------------------------------------------------------
+
+class ToolRegistry:
+    """The concrete set of tools mounted for the agent loop: built-ins plus the
+    tools discovered from each allowlisted MCP source. Discovery is best-effort —
+    an unreachable source is logged and simply contributes no tools."""
+
+    def __init__(self, mcp_sources: list[McpSource] | None = None):
+        self._builtin = {t["name"]: t for t in BUILTIN_TOOLS}
+        self._mcp_routes: dict[str, tuple[McpSource, str]] = {}
+        self._mcp_defs: list[dict] = []
+        self._mounted_sources: list[str] = []
+
+        for source in mcp_sources or []:
             try:
-                return tool["_handler"](args or {})
-            except Exception as exc:  # surface as a tool error, don't crash the loop
+                defs = source.list_tools()
+            except Exception as exc:
+                logger.warning(
+                    "MCP source %r (%s) unavailable; mounting no tools from it: %s",
+                    source.name, source.url, exc,
+                )
+                continue
+            self._mounted_sources.append(source.name)
+            for d in defs:
+                self._mcp_routes[d["name"]] = (source, d["_tool"])
+                self._mcp_defs.append(
+                    {
+                        "name": d["name"],
+                        "description": d["description"],
+                        "input_schema": d["input_schema"],
+                    }
+                )
+            logger.info("Mounted MCP source %r with %d tool(s)", source.name, len(defs))
+
+    @property
+    def mounted_sources(self) -> list[str]:
+        return list(self._mounted_sources)
+
+    def definitions(self) -> list[dict]:
+        """Anthropic tool definitions for every mounted tool (built-ins + MCP)."""
+        builtin_defs = [
+            {k: v for k, v in t.items() if not k.startswith("_")}
+            for t in BUILTIN_TOOLS
+        ]
+        return builtin_defs + self._mcp_defs
+
+    def execute(self, name: str, args: dict | None) -> str:
+        """Run a mounted tool by name; unknown names are refused, not guessed."""
+        if name in self._builtin:
+            try:
+                return self._builtin[name]["_handler"](args or {})
+            except Exception as exc:
                 return f"error: {exc}"
-    return f"error: unknown tool {name!r}"
+        route = self._mcp_routes.get(name)
+        if route is not None:
+            source, tool = route
+            try:
+                return source.call_tool(tool, args or {})
+            except Exception as exc:
+                logger.warning("MCP tool %r failed: %s", name, exc)
+                return f"error: {exc}"
+        return f"error: unknown tool {name!r}"

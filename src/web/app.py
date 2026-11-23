@@ -16,6 +16,7 @@ import uuid
 from flask import Flask, Response, jsonify, render_template, request, session
 
 from src.agent.loop import build_client, run_turn
+from src.agent.tools import build_registry
 from src.config import Config
 
 # session id -> message history. In-memory only; cleared on restart (stateless PoC).
@@ -28,10 +29,18 @@ def create_app() -> Flask:
 
     # Built once; None when no API key is configured so /health still works.
     client = build_client(Config.ANTHROPIC_API_KEY) if Config.ANTHROPIC_API_KEY else None
+    # The mounted tool set (built-ins + allowlisted MCP sources). Discovery is
+    # best-effort, so an unreachable source just yields no tools.
+    registry = build_registry(Config)
 
     @app.get("/health")
     def health():
-        return jsonify(status="ok", model=Config.ANTHROPIC_MODEL, ready=client is not None)
+        return jsonify(
+            status="ok",
+            model=Config.ANTHROPIC_MODEL,
+            ready=client is not None,
+            sources=registry.mounted_sources,
+        )
 
     @app.get("/")
     def index():
@@ -57,7 +66,9 @@ def create_app() -> Flask:
 
         def generate():
             try:
-                for event in run_turn(client, Config.ANTHROPIC_MODEL, Config.MAX_TOKENS, messages):
+                for event in run_turn(
+                    client, Config.ANTHROPIC_MODEL, Config.MAX_TOKENS, messages, registry
+                ):
                     yield json.dumps(event) + "\n"
             except Exception as exc:  # don't leak a stack trace to the browser
                 app.logger.exception("agent turn failed")

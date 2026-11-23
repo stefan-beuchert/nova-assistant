@@ -80,11 +80,12 @@ Phases are sequential; each ends with something demonstrable. Only Phase 0 is do
   built-in tool (`get_current_time`, no data source, no side effects) exercises the loop;
   the allowlist (`src/agent/tools.py`) is the structural control. Verified end-to-end
   locally.
-- **Phase 3 — Constellation via MCP.** Mount Constellation's read-only MCP server
-  through the allowlist and answer grounded questions about contacts.
-  **Depends on Constellation shipping that MCP server** — a cross-repo dependency
-  tracked in `docs/CURRENT.md` and routed through the Atlas Architect (Nova cannot
-  write into Constellation's repo). Until then, Phases 1–2 proceed independently.
+- **Phase 3 — Constellation via MCP (done, 2026-11-23).** Constellation shipped its
+  read-only MCP server (streamable-HTTP, tools `list_contacts` / `get_contact`). Nova
+  mounts it through the allowlist: `src/agent/mcp_client.py` is an MCP client over the
+  `mcp` SDK; `src/agent/tools.py`'s registry discovers its tools (namespaced
+  `constellation__*`) and routes calls back. Contract-verified locally against a real
+  streamable-HTTP MCP server. First run against the *deployed* server is Phase 4.
 - **Phase 4 — Deploy.** Infrastructure adds the `nova.atlas` Caddy route, Authentik
   `forward_auth`, and the Homepage entry (request already pre-filed in
   `atlas-infrastructure/docs/ATLAS_REQUESTS.md`); deploy to the Pi via the standard

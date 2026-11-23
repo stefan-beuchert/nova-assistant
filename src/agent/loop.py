@@ -12,13 +12,14 @@ are the structural allowlist in `tools.py`.
 
 from collections.abc import Iterator
 
-from .tools import execute_tool, tool_definitions
-
 SYSTEM_PROMPT = """You are Nova, the personal assistant for the Atlas homelab — \
 a private, self-hosted platform of the user's own applications.
 
 Your job is to answer the user's questions in natural language, grounding your \
-answers in the user's own data through the tools you are given.
+answers in the user's own data through the tools you are given. For example, when \
+the user asks about a person they know, use the contact tools to look them up \
+(list contacts to find the right id, then fetch that contact's details) before \
+answering.
 
 Rules you must follow:
 - You are read-only and non-authoritative: you retrieve and suggest, you never \
@@ -44,17 +45,20 @@ def run_turn(
     model: str,
     max_tokens: int,
     messages: list,
+    registry,
 ) -> Iterator[dict]:
     """Run the agent loop for one user turn.
 
-    `messages` must already end with the new user message; it is mutated in place
-    to append the assistant (and any tool-result) turns, so the caller's history
-    stays correct for the next turn. Yields event dicts:
+    `registry` is the mounted tool set (built-ins + allowlisted MCP sources); the
+    loop can only ever call what it exposes. `messages` must already end with the
+    new user message; it is mutated in place to append the assistant (and any
+    tool-result) turns, so the caller's history stays correct for the next turn.
+    Yields event dicts:
       {"type": "status", "value": "thinking" | "tool:<name>"}
       {"type": "token",  "text": "<delta>"}
       {"type": "done"}
     """
-    tools = tool_definitions()
+    tools = registry.definitions()
 
     while True:
         with client.messages.stream(
@@ -87,7 +91,7 @@ def run_turn(
         for block in final.content:
             if getattr(block, "type", None) == "tool_use":
                 yield {"type": "status", "value": f"tool:{block.name}"}
-                output = execute_tool(block.name, block.input)
+                output = registry.execute(block.name, block.input)
                 tool_results.append(
                     {
                         "type": "tool_result",

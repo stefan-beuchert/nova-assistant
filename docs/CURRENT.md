@@ -7,21 +7,24 @@ bullet list — a sync contract, not a status report.
 
 ## Current Phase
 
-Bootstrapped from `atlas-seedling` and built through **Phase 2** (2026-11-23).
-`docs/PROJECT.md` §6 Phases 0–2 are done: identity/sync docs, then the app scaffold
+Bootstrapped from `atlas-seedling` and built through **Phase 3** (2026-11-23).
+`docs/PROJECT.md` §6 Phases 0–3 are done: identity/sync docs; the app scaffold
 (`Dockerfile`, `compose.yaml` on the external `atlas` network, no bundled DB,
-`GET /health`), then the streaming web chat and the Claude agent loop with one
-safe built-in tool (`get_current_time`) to exercise tool-use. Runs via
-`docker compose up -d`. Verified locally (app boots without the SDK; `/health` + `/`
-respond; the loop streams, runs the tool, loops, and finishes). No data source is
-wired yet.
+`GET /health`); the streaming web chat + Claude agent loop; and the **Constellation
+MCP integration** — Nova mounts Constellation's read-only MCP server through the
+data-class allowlist (`src/agent/mcp_client.py` + `src/agent/tools.py`) and can call
+`list_contacts` / `get_contact`. Runs via `docker compose up -d`. Verified locally,
+including the MCP client bridge, allowlist, registry, and loop exercised against a
+**real streamable-HTTP MCP server** (contract-identical stub). Live hookup to the
+deployed Constellation server happens at Phase 4 (see Dependencies).
 
 ## Next Milestone
 
-**Phase 3 — Constellation via MCP** (`docs/PROJECT.md` §6) — **blocked** (see
-Dependencies). Mount Constellation's read-only MCP server through the allowlist and
-answer grounded questions about contacts. Deliberately not started until that server
-exists. Phase 4 (platform deploy) follows.
+**Phase 4 — Deploy** (`docs/PROJECT.md` §6): `atlas-infrastructure` adds the
+`nova.atlas` Caddy route + Authentik `forward_auth` + Homepage entry (request
+pre-filed), then Nova is set with `CONSTELLATION_MCP_URL=http://constellation-mcp:8000/mcp`
+and deployed to the Pi so it joins the `atlas` network and can reach the live
+Constellation MCP server. This is the first end-to-end run against real data.
 
 ## Deviations from Atlas Vision, Architecture, or Standards
 
@@ -37,13 +40,13 @@ exists. Phase 4 (platform deploy) follows.
 
 ## Blockers / Dependencies
 
-- **Phase 3 depends on Constellation shipping a read-only MCP server** wrapping its
-  existing contact read surface (`docs/decisions.md` D2). Nova cannot write into the
-  Constellation repo, so this needs to flow through the Architect into Constellation's
-  `docs/ATLAS_REQUESTS.md`. This is now the active blocker: Phases 1–2 are complete, so
-  the next step (Phase 3) cannot start until that server exists and its transport/URL/
-  tool contract is agreed. `CONSTELLATION_MCP_URL` is reserved in config/`.env.example`
-  for it.
+- **Phase 3 (Constellation MCP) — resolved.** Constellation shipped its read-only MCP
+  server (`constellation-mcp` service on the `atlas` network, streamable-HTTP on :8000,
+  tools `list_contacts` / `get_contact`; per that repo's `docs/CURRENT.md`). Nova now
+  integrates it via the allowlist (`CONSTELLATION_MCP_URL`). Caveat: full live
+  verification (Nova → the *deployed* server) is pending Nova's own deployment — the
+  server publishes no host port and is reachable only from the `atlas` network, so it
+  can't be exercised from a dev machine. Phase 3 is code-complete and contract-verified.
 - **Phase 4 (deploy) depends on `atlas-infrastructure`** adding the `nova.atlas` Caddy
   route, Authentik `forward_auth`, and a Homepage entry. A request for this is already
   pre-filed in that repo's `docs/ATLAS_REQUESTS.md` (2026-11-23); not actionable until
@@ -59,6 +62,17 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-23 (Phase 3) — Integrated Constellation's read-only MCP server. New MCP
+  client bridge `src/agent/mcp_client.py` (sync wrapper over the `mcp` 2.x high-level
+  `Client`, streamable-HTTP, fresh connection per call, best-effort). `src/agent/tools.py`
+  now holds a `ToolRegistry` + `build_allowlisted_sources` — the ADR-0009 allowlist in
+  code: only explicitly configured MCP sources (Constellation; Vitae/photos never) are
+  mounted, their tools namespaced `<source>__<tool>`. `run_turn` and the web app take
+  the registry; `/health` reports mounted `sources`. Added `mcp>=2,<3`; set
+  `CONSTELLATION_MCP_URL` default to `http://constellation-mcp:8000/mcp`. Verified end to
+  end against a real streamable-HTTP MCP stub (contract-identical): tool discovery,
+  `list_contacts`/`get_contact`/not-found, allowlist gating, registry routing, and the
+  full loop stream → tool_use → live MCP call → tool_result → done. Not committed yet.
 - 2026-11-23 (Phases 1–2) — Scaffolded the app and built the chat PoC's shell.
   `Dockerfile` (python:3.12-slim), `compose.yaml` (external `atlas` network, no DB),
   `requirements.txt` (anthropic, flask, python-dotenv), `src/config.py`, and a
