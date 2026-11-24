@@ -60,6 +60,14 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-24 (post-PoC — chat UI) — Functional polish to the web chat
+  (`src/web/templates/index.html`, client-side only, no backend/protocol change):
+  Nova's replies now render markdown via a small self-contained renderer
+  (HTML-escaped first, safe http/mailto links only); the transient "using <tool>"
+  status became a persistent "source · tool" grounding chip parsed from the
+  `<source>__<tool>` namespace; and the layout is centered in a max-width column
+  with a mobile breakpoint and stick-to-bottom auto-scroll. On branch
+  `chat-ui-improvements`.
 - 2026-11-24 (Phase 4 — deployed) — Infra/operator completed deployment:
   `atlas-infrastructure` added the `nova.atlas` Caddy route (→ `nova:8080`), Authentik
   `forward_auth`, and the Homepage entry, and Nova was deployed to the Pi (real `.env`,
