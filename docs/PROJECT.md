@@ -66,7 +66,7 @@ Enforced in code/config, never in prompt text. The model is not the control.
 
 ## 6. Build plan
 
-Phases are sequential; each ends with something demonstrable. Only Phase 0 is done.
+Phases are sequential; each ends with something demonstrable. All phases (0–4) are done.
 
 - **Phase 0 — Repo bootstrap (done, 2026-11-23).** Seedling copy turned into a real
   Nova repository: identity docs, `CLAUDE.md`, the Atlas sync-contract files, local
@@ -86,12 +86,13 @@ Phases are sequential; each ends with something demonstrable. Only Phase 0 is do
   `mcp` SDK; `src/agent/tools.py`'s registry discovers its tools (namespaced
   `constellation__*`) and routes calls back. Contract-verified locally against a real
   streamable-HTTP MCP server. First run against the *deployed* server is Phase 4.
-- **Phase 4 — Deploy (in progress).** App-side tooling is built: a git-pull-and-rebuild
-  systemd timer (`deploy/`) and a `GET /version` stamp, mirroring Constellation.
-  Remaining is operator/infra: `atlas-infrastructure` adds the `nova.atlas` Caddy route
-  (→ `nova:8080`) + Authentik `forward_auth` + Homepage entry (request pre-filed there),
-  and the operator deploys to the Pi with a real `.env` (`ANTHROPIC_API_KEY` +
-  `CONSTELLATION_MCP_URL`). First end-to-end run against real data happens here.
+- **Phase 4 — Deploy (done, 2026-11-24).** App-side tooling was built first: a
+  git-pull-and-rebuild systemd timer (`deploy/`) and a `GET /version` stamp, mirroring
+  Constellation. Infra/operator then completed it: `atlas-infrastructure` added the
+  `nova.atlas` Caddy route (→ `nova:8080`) + Authentik `forward_auth` + Homepage entry,
+  and Nova was deployed to the Pi with a real `.env` (`ANTHROPIC_API_KEY` +
+  `CONSTELLATION_MCP_URL`). Nova runs on the `atlas` network against the live
+  Constellation MCP server — the PoC's end-to-end success criterion (§2) is met.
 
 ## 7. Future direction (not committed)
 

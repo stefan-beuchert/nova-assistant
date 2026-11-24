@@ -7,31 +7,26 @@ bullet list — a sync contract, not a status report.
 
 ## Current Phase
 
-Bootstrapped from `atlas-seedling` and built through **Phase 3** (2026-11-23).
-`docs/PROJECT.md` §6 Phases 0–3 are done: identity/sync docs; the app scaffold
+Bootstrapped from `atlas-seedling` and built through **Phase 4** (2026-11-23/24).
+`docs/PROJECT.md` §6 Phases 0–4 are done: identity/sync docs; the app scaffold
 (`Dockerfile`, `compose.yaml` on the external `atlas` network, no bundled DB,
-`GET /health`); the streaming web chat + Claude agent loop; and the **Constellation
+`GET /health`); the streaming web chat + Claude agent loop; the **Constellation
 MCP integration** — Nova mounts Constellation's read-only MCP server through the
 data-class allowlist (`src/agent/mcp_client.py` + `src/agent/tools.py`) and can call
-`list_contacts` / `get_contact`. Runs via `docker compose up -d`. Verified locally,
-including the MCP client bridge, allowlist, registry, and loop exercised against a
-**real streamable-HTTP MCP server** (contract-identical stub). Live hookup to the
-deployed Constellation server happens at Phase 4 (see Dependencies).
+`list_contacts` / `get_contact`; and **deployment** — infra added the `nova.atlas`
+Caddy route + Authentik gating + Homepage entry, and Nova now runs on the Pi against
+the live Constellation MCP server (`GET /version` reports the live commit;
+`nova-deploy.timer` keeps it current). The PoC success criterion is met: a logged-in
+user can ask a natural-language question about their Constellation contacts and get a
+grounded answer.
 
 ## Next Milestone
 
-**Phase 4 — Deploy** (`docs/PROJECT.md` §6). The Constellation MCP server is live, and
-Nova's **app-side deploy tooling now exists** (`deploy/` — a git-pull-and-rebuild
-systemd timer mirroring Constellation; `GET /version` reports the live commit). What
-remains is operator/infra, not code:
-  1. **Infra** (`atlas-infrastructure`): add the `nova.atlas` Caddy route (→ `nova:8080`),
-     Authentik `forward_auth`, and a Homepage entry (request pre-filed there).
-  2. **Operator**: on the Pi, clone the repo, create `.env` (real `ANTHROPIC_API_KEY` +
-     `CONSTELLATION_MCP_URL=http://constellation-mcp:8000/mcp`), `docker compose up -d
-     --build`, and enable `nova-deploy.timer` (see `deploy/README.md`).
-Once deployed, Nova joins the `atlas` network and this is the first end-to-end run
-against real data (real Claude + the live Constellation MCP server) — which can't be
-exercised from a dev box (the MCP server publishes no host port).
+**PoC complete — no committed next phase.** The build plan (`docs/PROJECT.md` §6) is
+delivered end to end. Further work is the uncommitted future direction in
+`docs/PROJECT.md` §7 (additional read-only sources via the allowlist, conversation
+persistence, human-in-the-loop write tools), pursued only if the PoC proves useful and
+each via its own explicit decision. Near-term, iterating on the chat UI.
 
 ## Deviations from Atlas Vision, Architecture, or Standards
 
@@ -47,17 +42,13 @@ exercised from a dev box (the MCP server publishes no host port).
 
 ## Blockers / Dependencies
 
-- **Phase 3 (Constellation MCP) — resolved.** Constellation shipped its read-only MCP
-  server (`constellation-mcp` service on the `atlas` network, streamable-HTTP on :8000,
-  tools `list_contacts` / `get_contact`; per that repo's `docs/CURRENT.md`). Nova now
-  integrates it via the allowlist (`CONSTELLATION_MCP_URL`). Caveat: full live
-  verification (Nova → the *deployed* server) is pending Nova's own deployment — the
-  server publishes no host port and is reachable only from the `atlas` network, so it
-  can't be exercised from a dev machine. Phase 3 is code-complete and contract-verified.
-- **Phase 4 (deploy) depends on `atlas-infrastructure`** adding the `nova.atlas` Caddy
-  route, Authentik `forward_auth`, and a Homepage entry. A request for this is already
-  pre-filed in that repo's `docs/ATLAS_REQUESTS.md` (2026-11-23); not actionable until
-  Nova is being deployed.
+- **None.** Both cross-repo dependencies are resolved. **Phase 3 (Constellation MCP):**
+  Constellation shipped its read-only MCP server (`constellation-mcp` on the `atlas`
+  network, streamable-HTTP on :8000, tools `list_contacts` / `get_contact`) and Nova
+  consumes it via the allowlist (`CONSTELLATION_MCP_URL`). **Phase 4 (deploy):**
+  `atlas-infrastructure` added the `nova.atlas` Caddy route, Authentik `forward_auth`,
+  and the Homepage entry; Nova is live on the Pi and the full Nova → live Constellation
+  path now runs against real data.
 
 ## Notes
 
@@ -69,6 +60,12 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-24 (Phase 4 — deployed) — Infra/operator completed deployment:
+  `atlas-infrastructure` added the `nova.atlas` Caddy route (→ `nova:8080`), Authentik
+  `forward_auth`, and the Homepage entry, and Nova was deployed to the Pi (real `.env`,
+  `docker compose up -d --build`, `nova-deploy.timer` enabled). Nova now runs on the
+  `atlas` network against the **live** Constellation MCP server — the first end-to-end
+  run against real data. Phase 4 and the PoC build plan are complete.
 - 2026-11-23 (Phase 4 — app-side) — Added deploy tooling: `deploy/deploy.sh`
   (git-pull-and-rebuild poller with a conditional test gate), `deploy/nova-deploy.{service,timer}`,
   and `deploy/README.md`, mirroring Constellation. Added a running-version stamp

@@ -72,14 +72,14 @@ MCP-client-only, stateless PoC, server-rendered UI).
 
 ## Status
 
-**Bootstrapped from `atlas-seedling` on 2026-11-23; Phases 0–3 built** (see
-`docs/PROJECT.md` §6). The web chat, the Claude agent loop, and the **Constellation
-MCP integration** (read-only `list_contacts` / `get_contact` via the allowlist) are
-implemented and verified locally against a real streamable-HTTP MCP server. The
-remaining step is **Phase 4 — deployment** (`atlas-infrastructure` adds the
-`nova.atlas` route + Authentik gating; Nova joins the `atlas` network and runs against
-the live Constellation server); see [`docs/CURRENT.md`](docs/CURRENT.md). The
-architectural decision and data boundary are settled upstream (ADR-0009).
+**Bootstrapped from `atlas-seedling` on 2026-11-23; Phases 0–4 complete — the PoC is
+deployed and live** (see `docs/PROJECT.md` §6). The web chat, the Claude agent loop, and
+the **Constellation MCP integration** (read-only `list_contacts` / `get_contact` via the
+allowlist) are implemented, and Nova now runs on the Pi at `https://nova.atlas` behind
+the `nova.atlas` Caddy route + Authentik `forward_auth`, on the `atlas` network against
+the live Constellation MCP server. The PoC's end-to-end success criterion is met; see
+[`docs/CURRENT.md`](docs/CURRENT.md). The architectural decision and data boundary are
+settled upstream (ADR-0009).
 
 ## Local development
 

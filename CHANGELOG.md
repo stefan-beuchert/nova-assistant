@@ -4,6 +4,15 @@ Notable changes to the Nova repository. Day-to-day build progress lives in
 `docs/CURRENT.md`'s Changelog section (the Atlas sync contract); this file records
 repository-level milestones.
 
+## 2026-11-24 — Deployed (Phase 4 complete)
+
+- Nova is **live**. Infra (`atlas-infrastructure`) added the `nova.atlas` Caddy route
+  (→ `nova:8080`), Authentik `forward_auth`, and the Homepage entry; the operator
+  deployed to the Pi with a real `.env` and enabled `nova-deploy.timer`. Nova now runs
+  on the `atlas` network against the **live** Constellation MCP server — the first
+  end-to-end run against real data. The PoC build plan (`docs/PROJECT.md` §6) is
+  complete and its success criterion met. See `docs/CURRENT.md`.
+
 ## 2026-11-23 — Deploy tooling (Phase 4, app-side)
 
 - Added the git-pull-and-rebuild deploy mechanism (`deploy/deploy.sh` + systemd
