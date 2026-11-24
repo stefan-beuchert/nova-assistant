@@ -100,3 +100,24 @@ Only if the PoC proves useful: additional read-only sources via the allowlist,
 conversation persistence (Nova's own Postgres database), human-in-the-loop write
 tools, and — if hardware ever allows — revisiting the cloud-model deviation. None of
 these is started; follow actual need, not speculation.
+
+### Backlog (captured 2026-11-24, not scheduled)
+
+Concrete ideas noted so they aren't forgotten. Each still needs a deliberate decision
+before any work starts; none is committed.
+
+- **Show and switch the active model in the chat.** Surface the current model
+  (`ANTHROPIC_MODEL`) in the UI, and let the user pick among Claude models (e.g.
+  Opus / Sonnet / Haiku) per conversation. In scope: this is a choice *within* the
+  accepted cloud-Claude decision, not a multi-provider / local-model abstraction —
+  that stays out of scope (`§3`, `docs/decisions.md` D1). Keep the selectable set in
+  config, the same posture as the tool allowlist; never let a model choice widen what
+  data Nova can reach.
+- **Persist chat history for later analysis.** Store conversations so they can be
+  reviewed/analysed afterwards. This **reverses the stateless-PoC decision**
+  (`docs/decisions.md` D4): it becomes Nova's own database on the shared Postgres,
+  never a shared schema (`STANDARDS.md`). Privacy-critical — chats contain personal
+  data pulled from sources, so this is deliberate *storage* with a retention/backup
+  story, **not** logging: `CLAUDE.md §4` still forbids personal data in logs. Because
+  it changes Nova's data posture, it likely warrants an ADR-0009 touchpoint and a
+  `README.md` "Backup strategy" update.
