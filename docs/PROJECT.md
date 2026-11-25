@@ -130,6 +130,24 @@ before any work starts; none is committed.
   to drop the Google egress. Ruled out on the Pi for now — same compute wall as the
   local-LLM deviation (ADR-0009): slow, and weakest exactly on the personal names Nova
   looks up. (Decision recorded 2026-11-25.)
+- **Hands-free conversation mode.** *(captured 2026-11-25, to review later.)* Chain the
+  existing voice pieces into a natural back-and-forth so no buttons are needed per turn:
+  when input arrives via speech-to-text, **auto-send** once the user stops speaking
+  (`SpeechRecognition` `onend` / final result as the trigger, guarding empty
+  transcripts), and **auto-speak the reply** for that turn via TTS. "Like a real
+  conversation." Consider closing the loop fully — after TTS finishes, auto-reopen the
+  mic for the next turn — and barge-in (a new utterance cancels in-progress TTS). Must
+  stay fully optional: a single mode toggle, and TTS independently disable-able at any
+  time (the existing `🔊 Speak` toggle). All client-side (`index.html`), within D5 — no
+  backend, no data-boundary impact; it only re-wires UI events already present.
+- **German/English language handling for voice.** *(captured 2026-11-25, to review
+  later.)* Make voice feel right bilingually. **TTS:** detect the reply's language
+  (replies follow the user's input language, driven by the model) and pick a matching
+  voice / set `SpeechSynthesisUtterance.lang` — a lightweight client-side DE-vs-EN
+  heuristic on the reply text, rather than always using one locale. **STT:** `recog.lang`
+  is a single locale today (`navigator.language`); Web Speech doesn't auto-detect input
+  language well, so consider a quick DE/EN picker or remembering the last-used language
+  rather than true detection. Client-side only; no boundary impact.
 - **Persist chat history for later analysis.** Store conversations so they can be
   reviewed/analysed afterwards. This **reverses the stateless-PoC decision**
   (`docs/decisions.md` D4): it becomes Nova's own database on the shared Postgres,
