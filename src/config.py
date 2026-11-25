@@ -11,12 +11,45 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# The set of Claude models offered in the UI's model switcher. Kept in config —
+# the same posture as the tool allowlist (D3): what the user can pick is *data in
+# config*, never something the UI or user input can invent. A model choice only
+# changes which Claude reasons; it never widens what data Nova can reach (that is
+# the tool allowlist, ADR-0009 / D3). This is a choice *within* the accepted
+# cloud-Claude decision, not a multi-provider abstraction (D1, PROJECT.md §3).
+# Override with ANTHROPIC_MODELS as a comma-separated "id=Label,id=Label" list.
+_DEFAULT_MODELS = (
+    "claude-opus-4-8=Opus 4.8,"
+    "claude-sonnet-5=Sonnet 5,"
+    "claude-haiku-4-5-20251001=Haiku 4.5"
+)
+
+
+def _parse_models(raw: str) -> list[dict]:
+    """Parse "id=Label,id=Label" into [{"id", "label"}]. A bare id uses its id
+    as the label; blank/malformed entries are skipped."""
+    models = []
+    for item in raw.split(","):
+        model_id, _, label = item.partition("=")
+        model_id, label = model_id.strip(), label.strip()
+        if model_id:
+            models.append({"id": model_id, "label": label or model_id})
+    return models
+
 
 class Config:
     # Cloud reasoning model
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
     MAX_TOKENS = int(os.environ.get("MAX_TOKENS", "16000"))
+
+    # Selectable models (switcher). Guarantee the active default is always offered.
+    MODELS = _parse_models(os.environ.get("ANTHROPIC_MODELS", _DEFAULT_MODELS))
+    if ANTHROPIC_MODEL not in {m["id"] for m in MODELS}:
+        MODELS = [{"id": ANTHROPIC_MODEL, "label": ANTHROPIC_MODEL}, *MODELS]
+    # Allowlist for validating a requested model server-side — the UI cannot ask
+    # for a model that isn't configured here.
+    MODEL_IDS = frozenset(m["id"] for m in MODELS)
 
     # Web server
     HOST = os.environ.get("HOST", "0.0.0.0")

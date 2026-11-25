@@ -48,7 +48,9 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template(
+            "index.html", models=Config.MODELS, default_model=Config.ANTHROPIC_MODEL
+        )
 
     @app.post("/chat")
     def chat():
@@ -59,6 +61,13 @@ def create_app() -> Flask:
         message = (data.get("message") or "").strip()
         if not message:
             return jsonify(error="empty message"), 400
+
+        # The switcher picks which Claude reasons this turn. Validate against the
+        # config allowlist (Config.MODELS); anything else falls back to the default
+        # — the UI can never ask for a model that isn't configured.
+        model = data.get("model")
+        if model not in Config.MODEL_IDS:
+            model = Config.ANTHROPIC_MODEL
 
         sid = session.get("sid")
         if not sid:
@@ -71,7 +80,7 @@ def create_app() -> Flask:
         def generate():
             try:
                 for event in run_turn(
-                    client, Config.ANTHROPIC_MODEL, Config.MAX_TOKENS, messages, registry
+                    client, model, Config.MAX_TOKENS, messages, registry
                 ):
                     yield json.dumps(event) + "\n"
             except Exception as exc:  # don't leak a stack trace to the browser

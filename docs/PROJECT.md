@@ -106,13 +106,27 @@ these is started; follow actual need, not speculation.
 Concrete ideas noted so they aren't forgotten. Each still needs a deliberate decision
 before any work starts; none is committed.
 
-- **Show and switch the active model in the chat.** Surface the current model
-  (`ANTHROPIC_MODEL`) in the UI, and let the user pick among Claude models (e.g.
-  Opus / Sonnet / Haiku) per conversation. In scope: this is a choice *within* the
-  accepted cloud-Claude decision, not a multi-provider / local-model abstraction —
-  that stays out of scope (`§3`, `docs/decisions.md` D1). Keep the selectable set in
-  config, the same posture as the tool allowlist; never let a model choice widen what
-  data Nova can reach.
+- **Show and switch the active model in the chat.** ✅ *Done 2026-11-25.* A header
+  `<select>` offers the models in `Config.MODELS` (env `ANTHROPIC_MODELS`, default
+  Opus 4.8 / Sonnet 5 / Haiku 4.5), persisted client-side and sent per turn; `/chat`
+  re-validates the id against the config allowlist and falls back to the default. The
+  selectable set is data in config (the tool-allowlist posture, D3) and a model choice
+  never widens Nova's data reach. Stayed within the cloud-Claude decision — no
+  multi-provider / local-model abstraction (`§3`, `docs/decisions.md` D1).
+- **Read replies aloud (text-to-speech).** ✅ *Done 2026-11-25.* Nova's replies can be
+  spoken via the browser's on-device `speechSynthesis` (no audio/text egress): a
+  per-reply speaker button and a persisted header auto-speak toggle. A UI modality on
+  the existing authenticated web chat — no new data source, no write/outbound tool.
+- **Voice input (speech-to-text).** ✅ *Done 2026-11-25, browser-only.* A mic button
+  dictates into the message box via the browser's `SpeechRecognition` (hidden where the
+  API is absent, e.g. Firefox). **Deliberate trade:** this is *not* on-device — Chrome/Edge
+  stream the audio to Google's speech service — accepted because the query text already
+  goes to Anthropic (same queries, one more vendor, as audio) and it never touches the
+  hard-denied classes. **Revisit when the homelab can host a transcriber:** move to a
+  self-hosted Whisper (`whisper.cpp` / `faster-whisper`) on a capable box on the tailnet
+  to drop the Google egress. Ruled out on the Pi for now — same compute wall as the
+  local-LLM deviation (ADR-0009): slow, and weakest exactly on the personal names Nova
+  looks up. (Decision recorded 2026-11-25.)
 - **Persist chat history for later analysis.** Store conversations so they can be
   reviewed/analysed afterwards. This **reverses the stateless-PoC decision**
   (`docs/decisions.md` D4): it becomes Nova's own database on the shared Postgres,

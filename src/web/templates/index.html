@@ -33,6 +33,12 @@
       border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
     }
     header button:hover { color: var(--text); }
+    header button.on { color: var(--accent); border-color: var(--accent); }
+    header select {
+      background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer;
+    }
+    header select:hover { color: var(--text); }
 
     /* min-height: 0 lets this flex child shrink below its content and scroll,
        instead of growing the page; it is the only scrollable region. */
@@ -47,8 +53,8 @@
     .msg.nova { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
 
     /* Rendered markdown inside Nova's replies. */
-    .msg.nova > :first-child { margin-top: 0; }
-    .msg.nova > :last-child { margin-bottom: 0; }
+    .msg.nova .md > :first-child { margin-top: 0; }
+    .msg.nova .md > :last-child { margin-bottom: 0; }
     .msg.nova p { margin: 0 0 8px; }
     .msg.nova h1, .msg.nova h2, .msg.nova h3 { margin: 12px 0 6px; line-height: 1.25; }
     .msg.nova h1 { font-size: 18px; }
@@ -66,6 +72,17 @@
     }
     .msg.nova pre code { background: none; padding: 0; font-size: 12.5px; }
     .msg.nova a { color: var(--accent); }
+
+    /* Per-reply "read aloud" control (text-to-speech). */
+    .msg.nova .speak {
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-top: 8px; width: 28px; height: 24px; padding: 0; line-height: 1;
+      background: var(--panel-2); color: var(--muted);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 13px; cursor: pointer;
+    }
+    .msg.nova .speak:hover { color: var(--text); }
+    .msg.nova .speak.on { color: var(--accent); border-color: var(--accent); }
 
     /* Grounding chips: which source/tool Nova used. */
     .tools { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 6px; max-width: 92%; }
@@ -88,6 +105,13 @@
     }
     #send { background: var(--accent); color: #0f1115; border: none; border-radius: 8px; padding: 0 18px; font-weight: 600; cursor: pointer; }
     #send:disabled { opacity: .5; cursor: default; }
+    /* Voice input (speech-to-text) mic button. */
+    #mic {
+      background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0 12px; font-size: 16px; cursor: pointer; line-height: 1;
+    }
+    #mic:hover { color: var(--text); }
+    #mic.on { color: var(--accent); border-color: var(--accent); }
 
     .empty { color: var(--muted); align-self: center; margin-top: 10vh; text-align: center; }
     .empty code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
@@ -104,6 +128,8 @@
 
     @media (max-width: 640px) {
       header { padding: 10px 12px; }
+      /* Drop the subtitle so the model switcher + buttons fit without overflow. */
+      header .sub { display: none; }
       #log { padding: 12px; }
       form { padding: 10px 12px; }
       .msg, .tools { max-width: 100%; }
@@ -116,6 +142,15 @@
     <h1>Nova</h1>
     <span class="sub">Atlas personal assistant · read-only</span>
     <span class="spacer"></span>
+    {% if models|length > 1 %}
+    <select id="model" title="Reasoning model" aria-label="Reasoning model">
+      {% for m in models %}
+      <option value="{{ m.id }}"{% if m.id == default_model %} selected{% endif %}>{{ m.label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <button id="speak" type="button" hidden aria-pressed="false"
+            title="Read Nova's replies aloud (on-device)">🔊 Speak</button>
     <button id="reset" type="button">New chat</button>
   </header>
 
@@ -132,6 +167,8 @@
 
   <form id="form">
     <textarea id="input" rows="1" placeholder="Message Nova…" autocomplete="off"></textarea>
+    <button id="mic" type="button" hidden aria-pressed="false"
+            title="Dictate your message">🎤</button>
     <button id="send" type="submit">Send</button>
   </form>
 
@@ -143,6 +180,113 @@
     const input = document.getElementById("input");
     const send = document.getElementById("send");
     const jump = document.getElementById("jump");
+    const speakToggle = document.getElementById("speak");
+    const modelSelect = document.getElementById("model"); // absent when only one model is offered
+    const micBtn = document.getElementById("mic");
+
+    // --- Model switcher: remember the chosen Claude across reloads. The actual set
+    // of options is server-rendered from the config allowlist (Config.MODELS); the
+    // server re-validates every /chat against it, so a stale saved id simply falls
+    // back to the configured default.
+    if (modelSelect) {
+      const saved = localStorage.getItem("nova.model");
+      if (saved && [...modelSelect.options].some((o) => o.value === saved)) {
+        modelSelect.value = saved;
+      }
+      modelSelect.addEventListener("change", () => {
+        localStorage.setItem("nova.model", modelSelect.value);
+      });
+    }
+
+    // --- Speech-to-text (voice input): dictate into the message box via the
+    // browser's SpeechRecognition. NOTE: unlike the on-device TTS above, this is
+    // NOT local — Chrome/Edge stream the audio to Google's speech service to
+    // transcribe it. That is a deliberate, accepted trade for the PoC: the query
+    // text already goes to Anthropic, so this adds the same queries (as audio) to
+    // one more vendor, and never touches the hard-denied data classes. Revisit with
+    // a self-hosted transcriber once the homelab can host one. The button is hidden
+    // where the API is absent (e.g. Firefox), so this is purely additive.
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recog = null, listening = false, recogBase = "";
+
+    function stopDictation() { if (recog && listening) { try { recog.stop(); } catch (e) {} } }
+    function startDictation() {
+      recog = new SpeechRecognition();
+      recog.lang = navigator.language || "en-US";
+      recog.interimResults = true; // live preview as you speak
+      recog.continuous = false;    // one utterance, stops on a natural pause
+      // Dictation appends to whatever is already typed, rather than replacing it.
+      recogBase = input.value.replace(/\s+$/, "");
+      if (recogBase) recogBase += " ";
+      recog.onresult = (e) => {
+        let text = "";
+        for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+        input.value = recogBase + text;
+        autosize();
+      };
+      recog.onerror = () => stopDictation();
+      recog.onend = () => {
+        listening = false;
+        micBtn.textContent = "🎤";
+        micBtn.classList.remove("on");
+        micBtn.setAttribute("aria-pressed", "false");
+        input.focus();
+      };
+      recog.start();
+      listening = true;
+      micBtn.textContent = "⏹";
+      micBtn.classList.add("on");
+      micBtn.setAttribute("aria-pressed", "true");
+    }
+
+    if (SpeechRecognition) {
+      micBtn.hidden = false;
+      micBtn.addEventListener("click", () => (listening ? stopDictation() : startDictation()));
+    }
+
+    // --- Text-to-speech: read Nova's replies aloud with the browser's built-in
+    // speechSynthesis. This runs on-device — no audio or text leaves the machine,
+    // so it adds no new data egress (unlike cloud speech services). Off by default;
+    // the header toggle (persisted) auto-speaks each new reply, and every reply has
+    // a speaker button to play/stop it on demand. One utterance plays at a time.
+    const tts = window.speechSynthesis;
+    const ttsSupported = !!tts && typeof window.SpeechSynthesisUtterance === "function";
+    let autoSpeak = ttsSupported && localStorage.getItem("nova.autospeak") === "1";
+    let speakingBtn = null; // the speaker button whose reply is currently playing
+
+    function resetSpeakBtn() {
+      if (speakingBtn) { speakingBtn.textContent = "🔊"; speakingBtn.classList.remove("on"); speakingBtn = null; }
+    }
+    function stopSpeech() { if (ttsSupported) tts.cancel(); resetSpeakBtn(); }
+    // Speak `text`, reflecting play/stop state on `btn`. Tapping the button that's
+    // already playing stops it (toggle); starting a new one cancels the previous.
+    function speak(text, btn) {
+      if (!ttsSupported) return;
+      const toggleOff = btn && btn === speakingBtn;
+      stopSpeech();
+      text = (text || "").trim();
+      if (toggleOff || !text) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.onend = u.onerror = () => { if (btn === speakingBtn) resetSpeakBtn(); };
+      speakingBtn = btn || null;
+      if (btn) { btn.textContent = "⏹"; btn.classList.add("on"); }
+      tts.speak(u);
+    }
+
+    if (ttsSupported) {
+      speakToggle.hidden = false;
+      const reflect = () => {
+        speakToggle.classList.toggle("on", autoSpeak);
+        speakToggle.setAttribute("aria-pressed", String(autoSpeak));
+      };
+      reflect();
+      speakToggle.addEventListener("click", () => {
+        autoSpeak = !autoSpeak;
+        localStorage.setItem("nova.autospeak", autoSpeak ? "1" : "0");
+        reflect();
+        if (!autoSpeak) stopSpeech();
+      });
+    }
 
     // Private-use sentinels wrapping stashed code blocks. Never appear in model
     // output, so they can't collide with Nova's text; built at runtime so the source
@@ -248,13 +392,31 @@
       const el = document.createElement("div");
       el.className = "msg nova";
       el._raw = "";
+      // Rendered markdown lives in its own child so the speaker button below it
+      // survives each re-render (appendToken rewrites only _md.innerHTML), and so
+      // speech reads the plain text (_md.textContent) without the button's glyph.
+      const md = document.createElement("div");
+      md.className = "md";
+      el.appendChild(md);
+      el._md = md;
+      if (ttsSupported) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "speak";
+        btn.textContent = "🔊";
+        btn.setAttribute("aria-label", "Read this reply aloud");
+        btn.title = "Read aloud";
+        btn.addEventListener("click", () => speak(md.textContent, btn));
+        el.appendChild(btn);
+        el._speakBtn = btn;
+      }
       thread.appendChild(el);
       keepPinned();
       return el;
     }
     function appendToken(bubble, text) {
       bubble._raw += text;
-      bubble.innerHTML = renderMarkdown(bubble._raw);
+      bubble._md.innerHTML = renderMarkdown(bubble._raw);
       keepPinned();
     }
     function toolLabel(name) {
@@ -296,6 +458,7 @@
     function clearStatus() { if (statusEl && statusEl.isConnected) statusEl.remove(); }
 
     async function sendMessage(text) {
+      stopSpeech(); // a new turn silences any reply still being read aloud
       addUser(text);
       stick = true; // following our own new message
       send.disabled = true;
@@ -306,7 +469,7 @@
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: text, model: modelSelect ? modelSelect.value : undefined }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -344,6 +507,8 @@
               addNote("err", ev.message || "Something went wrong.");
             } else if (ev.type === "done") {
               clearStatus();
+              // Auto-read the finished reply (the final bubble after any tool calls).
+              if (autoSpeak && bubble && bubble._speakBtn) speak(bubble._md.textContent, bubble._speakBtn);
             }
           }
         }
@@ -359,6 +524,7 @@
 
     form.addEventListener("submit", (e) => {
       e.preventDefault();
+      stopDictation();
       const text = input.value.trim();
       if (!text) return;
       input.value = "";
@@ -366,15 +532,17 @@
       sendMessage(text);
     });
 
-    input.addEventListener("input", () => {
+    function autosize() {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 160) + "px";
-    });
+    }
+    input.addEventListener("input", autosize);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
     });
 
     document.getElementById("reset").addEventListener("click", async () => {
+      stopSpeech();
       await fetch("/reset", { method: "POST" });
       thread.innerHTML = "";
       thread.appendChild(empty);
