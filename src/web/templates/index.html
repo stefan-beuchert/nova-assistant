@@ -207,7 +207,41 @@
     // a self-hosted transcriber once the homelab can host one. The button is hidden
     // where the API is absent (e.g. Firefox), so this is purely additive.
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let recog = null, listening = false, recogBase = "";
+    let recog = null, listening = false, recogBase = "", micWatchdog = null;
+
+    // Reset the mic button to idle. Called from every exit path (onend, onerror,
+    // a failed start, and the watchdog) so the button can never get stuck in ⏹.
+    function resetMic() {
+      listening = false;
+      if (micWatchdog) { clearTimeout(micWatchdog); micWatchdog = null; }
+      micBtn.textContent = "🎤";
+      micBtn.classList.remove("on");
+      micBtn.setAttribute("aria-pressed", "false");
+    }
+    // Turn a SpeechRecognition error code into something actionable. These are the
+    // common deployed-site failures: the browser needs mic permission AND a trusted
+    // HTTPS origin, and (in Chrome/Edge) network access to Google's speech backend.
+    function dictationErrorText(code) {
+      switch (code) {
+        case "not-allowed":
+        case "service-not-allowed":
+          return "Voice input blocked: allow microphone access for this site. It also " +
+                 "needs a trusted HTTPS origin — if nova.atlas uses a cert your browser " +
+                 "doesn't trust, the mic stays blocked.";
+        case "network":
+          return "Voice input failed: the browser couldn't reach the speech service " +
+                 "(Chrome/Edge send audio to Google to transcribe). Check this device's " +
+                 "internet access.";
+        case "audio-capture":
+          return "Voice input failed: no microphone was found.";
+        case "no-speech":
+          return "Didn't catch any speech — tap the mic and try again.";
+        case "aborted":
+          return ""; // user-initiated stop; not an error worth showing
+        default:
+          return "Voice input error: " + code + ".";
+      }
+    }
 
     function stopDictation() { if (recog && listening) { try { recog.stop(); } catch (e) {} } }
     function startDictation() {
@@ -224,19 +258,40 @@
         input.value = recogBase + text;
         autosize();
       };
-      recog.onerror = () => stopDictation();
-      recog.onend = () => {
-        listening = false;
-        micBtn.textContent = "🎤";
-        micBtn.classList.remove("on");
-        micBtn.setAttribute("aria-pressed", "false");
-        input.focus();
+      // onstart fires once the engine is actually capturing; we use it to cancel
+      // the watchdog below. If it never fires, the mic is blocked and no other
+      // event will come either — the watchdog is the only way out of that hang.
+      recog.onstart = () => { if (micWatchdog) { clearTimeout(micWatchdog); micWatchdog = null; } };
+      recog.onerror = (e) => {
+        const msg = dictationErrorText(e.error);
+        if (msg) addNote("err", msg); // surface the reason instead of failing silently
+        resetMic();
       };
-      recog.start();
+      recog.onend = () => { resetMic(); input.focus(); };
+      try {
+        recog.start();
+      } catch (e) {
+        // start() throws e.g. if called while already running; don't get stuck.
+        resetMic();
+        addNote("err", "Couldn't start voice input: " + e.message);
+        return;
+      }
       listening = true;
       micBtn.textContent = "⏹";
       micBtn.classList.add("on");
       micBtn.setAttribute("aria-pressed", "true");
+      // Recover from a silent, eventless hang (mic blocked / untrusted origin):
+      // if the engine hasn't started capturing shortly after start(), bail out
+      // and explain. onstart clears this; a real long dictation is unaffected.
+      micWatchdog = setTimeout(() => {
+        if (!listening) return;
+        try { recog.abort(); } catch (e) {}
+        resetMic();
+        addNote("err",
+          "Voice input didn't start. Most likely the microphone is blocked for this " +
+          "site, or nova.atlas isn't a trusted HTTPS origin in this browser. Check the " +
+          "mic permission (address-bar icon) and that the page padlock is valid.");
+      }, 4000);
     }
 
     if (SpeechRecognition) {
