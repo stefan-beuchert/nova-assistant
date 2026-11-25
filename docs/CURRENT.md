@@ -45,6 +45,16 @@ each via its own explicit decision. Near-term, iterating on the chat UI.
   calendar as an allowed read-only class. Note the boundary rationale is unchanged:
   Vitae (medical) and photos remain permanently denied. Nova cannot edit `atlas`/`nexus`
   repos (CLAUDE.md §6), so this flows through you.
+- **`nova.atlas` needs a browser-trusted TLS certificate (infra request).** The new
+  voice-input (speech-to-text) feature uses the browser's `SpeechRecognition`, which
+  the browser only permits in a **secure context**. `https://nova.atlas` is served over
+  TLS, but its certificate isn't trusted by the user's browser (confirmed 2026-11-25:
+  broken padlock), so the origin isn't treated as secure and the **microphone is
+  blocked** — the mic button fails with the "untrusted HTTPS origin" diagnostic. This is
+  an `atlas-infrastructure` / Caddy change Nova can't make (CLAUDE.md §6): please issue
+  `nova.atlas` a cert the browsers trust (or distribute Caddy's internal CA to the
+  devices). Nova-side the feature is complete and fails gracefully until then; nothing
+  else about Nova is blocked (text chat, TTS, and the model switcher all work).
 
 ## Blockers / Dependencies
 
@@ -66,6 +76,16 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-25 (post-PoC — deployed + STT fix) — The chat-UI and calendar-source
+  changes below are **live on the Pi** and mostly working. One bug fixed on top: the
+  voice-input mic button could **stick in the listening state** on a blocked mic, because
+  no `SpeechRecognition` event fires in that case. Hardened the client (`index.html`,
+  `4083a9b`): the button always resets (watchdog + all exit paths) and errors are
+  surfaced as readable notes. Diagnosis then confirmed the real cause is **not a Nova
+  bug**: `nova.atlas`'s TLS cert isn't browser-trusted, so the page isn't a secure
+  context and the browser blocks the microphone — an `atlas-infrastructure` cert fix now
+  flagged under Open Questions for the Architect. Everything else verified working: text
+  chat, TTS, model switcher, and the Nexus calendar source.
 - 2026-11-25 (post-PoC — 2nd data source) — Mounted **Nexus's read-only calendar MCP
   server** through the ADR-0009 allowlist, with explicit user confirmation (CLAUDE.md
   §2). `src/config.py` adds `NEXUS_MCP_URL` (blank = disabled, same posture as
@@ -76,7 +96,8 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
   Vitae/photos stay permanently absent. `.env.example` documents the URL
   (`http://nexus-mcp:8000/mcp`). The ADR-0009 amendment for a 2nd source is owned
   upstream — flagged under Open Questions. First real discovery happens on the Pi after
-  deploy (the `atlas`-network server isn't reachable from a dev box). Not committed yet.
+  deploy (the `atlas`-network server isn't reachable from a dev box). Committed `26f6b4f`,
+  pushed and auto-deployed 2026-11-25.
 - 2026-11-25 (post-PoC — chat UI) — Two backlog items from `docs/PROJECT.md` §7,
   both within the accepted cloud-Claude decision and the ADR-0009 boundary (no new
   data reach, no write/outbound tool). **Text-to-speech:** Nova's replies can be read
@@ -95,7 +116,7 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
   on-device TTS, this streams audio to Google's cloud in Chrome/Edge — a deliberate,
   recorded trade (the query text already goes to Anthropic; never touches hard-denied
   data), to be revisited with a self-hosted Whisper once the homelab can host one — see
-  `docs/PROJECT.md` §7. Not committed yet.
+  `docs/PROJECT.md` §7. Committed `214244f`, pushed and auto-deployed 2026-11-25.
 - 2026-11-24 (post-PoC — chat UI) — Functional polish to the web chat
   (`src/web/templates/index.html`, client-side only, no backend/protocol change):
   Nova's replies now render markdown via a small self-contained renderer
