@@ -59,8 +59,13 @@ class Config:
     # Ephemeral per-boot key if unset — acceptable for the single-user PoC.
     SECRET_KEY = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
 
-    # Constellation's read-only MCP server (the allowlisted data source, ADR-0009).
+    # Allowlisted read-only MCP sources (ADR-0009 / D3). Each is off unless its URL
+    # is configured; adding one here is a deliberate CLAUDE.md §2 decision. Vitae
+    # (medical) and photos are permanently absent and must never be added.
     CONSTELLATION_MCP_URL = os.environ.get("CONSTELLATION_MCP_URL", "")
+    # Nexus's read-only calendar MCP server (2nd source, added 2026-11-25 with
+    # explicit user confirmation; ADR-0009 amendment owned upstream by the Architect).
+    NEXUS_MCP_URL = os.environ.get("NEXUS_MCP_URL", "")
 
     # Running-version stamp, set by deploy/deploy.sh via compose; surfaced at /version.
     APP_VERSION = os.environ.get("APP_VERSION", "dev")

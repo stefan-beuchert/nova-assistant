@@ -25,7 +25,9 @@ Nova reasons via a **cloud** model (Anthropic Claude), so what it can read is
 constrained by an explicit **data-class allowlist enforced in code/config, not in
 prompt text**. The model is not the control; the allowlist is.
 
-- **Constellation** — allowed (the proof-of-concept source; read-only).
+- **Constellation** — allowed (contacts; the first source, read-only).
+- **Nexus calendar** — allowed (read-only; added 2026-11-25 by explicit decision —
+  ADR-0009 amendment owned upstream).
 - **Vitae (medical records) and photos** — **permanently denied** to any
   cloud-backed assistant. No tool reaching that data is ever mounted, so the
   boundary holds structurally rather than depending on the model declining to ask.
@@ -40,8 +42,9 @@ most important constraint on this repository.
 
 - A small server-rendered **web chat** at `nova.atlas`, behind Tailscale + Authentik.
 - An **agent loop** driving Anthropic Claude via tool-use.
-- A single read-only data source for the PoC: **Constellation**, consumed through its
-  own read-only **MCP server** (owned by that repository — see Architecture).
+- Read-only data sources, each consumed through its own read-only **MCP server** (owned
+  by that repository — see Architecture): **Constellation** (contacts) and, since
+  2026-11-25, **Nexus** (calendar). Each addition is a deliberate allowlist decision.
 - **Read-only, non-authoritative.** Nova suggests and retrieves; it never acts
   unattended. Any future write or outbound-messaging tool requires explicit
   human-in-the-loop confirmation.
@@ -129,7 +132,8 @@ app-owned half of the deployment contract.
 | `APP_URL` | Public URL this service is reached at (`https://nova.atlas`). |
 | `PORT` | Port the app listens on inside the container. |
 | `LOG_LEVEL` | Logging verbosity. |
-| `CONSTELLATION_MCP_URL` | Constellation's read-only MCP server on the `atlas` network — `http://constellation-mcp:8000/mcp` in production. The allowlisted data source Nova reads. Unset = source disabled (built-in tools only). |
+| `CONSTELLATION_MCP_URL` | Constellation's read-only MCP server on the `atlas` network — `http://constellation-mcp:8000/mcp` in production. An allowlisted data source Nova reads (contacts). Unset = source disabled (built-in tools only). |
+| `NEXUS_MCP_URL` | Nexus's read-only calendar MCP server on the `atlas` network — `http://nexus-mcp:8000/mcp` in production. The 2nd allowlisted data source (calendar: `list_events` / `list_calendars`; added 2026-11-25). Unset = source disabled. |
 
 No `POSTGRES_*` variables: the PoC is **stateless** and provisions no database (see
 `docs/decisions.md`). This table grows as the scaffold lands.

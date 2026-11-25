@@ -46,12 +46,17 @@ BUILTIN_TOOLS = [
 
 def build_allowlisted_sources(config) -> list[McpSource]:
     """The ADR-0009 data-class allowlist: only explicitly configured sources are
-    ever mounted. Constellation is the proof-of-concept source. Vitae and photos
-    are intentionally absent and must never be added here.
+    ever mounted. Constellation (contacts) and Nexus (calendar) are the allowed
+    read-only sources. Vitae medical records and photos are intentionally absent
+    and must never be added here.
     """
     sources: list[McpSource] = []
     if getattr(config, "CONSTELLATION_MCP_URL", ""):
         sources.append(McpSource("constellation", config.CONSTELLATION_MCP_URL))
+    # Nexus calendar (2nd source, added 2026-11-25 with explicit user confirmation).
+    # Tools are namespaced calendar__* (e.g. calendar__list_events).
+    if getattr(config, "NEXUS_MCP_URL", ""):
+        sources.append(McpSource("calendar", config.NEXUS_MCP_URL))
     return sources
 
 

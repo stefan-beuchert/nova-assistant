@@ -50,7 +50,10 @@ on a new decision):
 Restated from ADR-0009 because it is this project's defining constraint — neither this
 file nor the ADR is the sole source of truth without the other:
 
-- **Constellation** — allowed (read-only).
+- **Constellation** — allowed (read-only; contacts).
+- **Nexus calendar** — allowed (read-only; opted in 2026-11-25 by explicit decision —
+  the first realisation of the "anything else" clause below; ADR-0009 amendment owned
+  upstream by the Architect).
 - **Vitae (medical) and photos** — permanently denied; no tool reaching them is ever
   mounted, so the boundary holds structurally.
 - **Anything else** — opt-in only, per explicit decision.

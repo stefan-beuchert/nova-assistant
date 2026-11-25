@@ -37,8 +37,14 @@ each via its own explicit decision. Near-term, iterating on the chat UI.
 
 ## Open Questions for the Architect
 
-- None blocking. (The Constellation MCP-server dependency below is tracked, not a
-  question.)
+- **ADR-0009 needs amending for Nova's 2nd data source.** On 2026-11-25, with explicit
+  user confirmation, Nova mounted **Nexus's read-only calendar MCP server** (`nexus-mcp`
+  on the `atlas` network, tools `calendar__list_events` / `calendar__list_calendars`)
+  through the allowlist alongside Constellation. ADR-0009 (owned upstream in `atlas`)
+  still describes Constellation as the sole PoC source — please amend it to record
+  calendar as an allowed read-only class. Note the boundary rationale is unchanged:
+  Vitae (medical) and photos remain permanently denied. Nova cannot edit `atlas`/`nexus`
+  repos (CLAUDE.md §6), so this flows through you.
 
 ## Blockers / Dependencies
 
@@ -60,6 +66,36 @@ Bootstrap leftovers are cleared: the `template/` scaffold folder and the Windows
 
 ## Changelog
 
+- 2026-11-25 (post-PoC — 2nd data source) — Mounted **Nexus's read-only calendar MCP
+  server** through the ADR-0009 allowlist, with explicit user confirmation (CLAUDE.md
+  §2). `src/config.py` adds `NEXUS_MCP_URL` (blank = disabled, same posture as
+  Constellation); `src/agent/tools.py`'s `build_allowlisted_sources` appends
+  `McpSource("calendar", …)`, so Nova discovers `calendar__list_events` /
+  `calendar__list_calendars` and `/health` reports `calendar` once the source is
+  reachable. No new write/outbound path — Nova only relays the server's read-only tools;
+  Vitae/photos stay permanently absent. `.env.example` documents the URL
+  (`http://nexus-mcp:8000/mcp`). The ADR-0009 amendment for a 2nd source is owned
+  upstream — flagged under Open Questions. First real discovery happens on the Pi after
+  deploy (the `atlas`-network server isn't reachable from a dev box). Not committed yet.
+- 2026-11-25 (post-PoC — chat UI) — Two backlog items from `docs/PROJECT.md` §7,
+  both within the accepted cloud-Claude decision and the ADR-0009 boundary (no new
+  data reach, no write/outbound tool). **Text-to-speech:** Nova's replies can be read
+  aloud via the browser's on-device `speechSynthesis` — no audio or text leaves the
+  machine, so no new egress. A per-reply speaker button plays/stops any reply, and a
+  persisted header toggle auto-speaks new replies; speech stops on a new turn or reset
+  (`src/web/templates/index.html`, client-only). **Model switcher:** the active Claude
+  is selectable per turn from a config-defined allowlist (`Config.MODELS` / env
+  `ANTHROPIC_MODELS`, default Opus 4.8 / Sonnet 5 / Haiku 4.5). The set is *data in
+  config* — the same posture as the tool allowlist (D3) — and `/chat` re-validates the
+  requested id server-side, falling back to the default; a model choice never widens
+  what data Nova can reach. Header `<select>` (persisted, server-rendered from the
+  allowlist) in `index.html`; `src/config.py` + `src/web/app.py`. **Voice input
+  (speech-to-text):** a mic button dictates into the message box via the browser's
+  `SpeechRecognition` (`index.html`, client-only; hidden where unsupported). Unlike the
+  on-device TTS, this streams audio to Google's cloud in Chrome/Edge — a deliberate,
+  recorded trade (the query text already goes to Anthropic; never touches hard-denied
+  data), to be revisited with a self-hosted Whisper once the homelab can host one — see
+  `docs/PROJECT.md` §7. Not committed yet.
 - 2026-11-24 (post-PoC — chat UI) — Functional polish to the web chat
   (`src/web/templates/index.html`, client-side only, no backend/protocol change):
   Nova's replies now render markdown via a small self-contained renderer
